@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "orchestration-procurement-docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/zTK47/Orchestration-Procurement"
+    }
+  }
+}

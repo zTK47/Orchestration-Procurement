@@ -39,13 +39,21 @@ TODO: any tool you evaluated and dropped.
 ## Testing and deployment
 
 - Pyramid: unit (no DB) → integration (Postgres, SAVEPOINT rollback) → e2e (`TestClient`, dependency overrides).
-- Verified so far: 64 unit tests and `demo.py`. Not verified: SQLAlchemy layer, integration and e2e tests, Docker,
-  CI, deployment. TODO: after the first CI run, note what failed and what you changed.
+- Verified: 141 unit, 12 integration (PostgreSQL 16) and 13 e2e tests, `ruff`, `demo.py`; the Docker build and all
+  CI jobs were green on the migration pull request before the same content was pushed to `main` (2026-10-20). Not verified: deployment.
+- The first CI run in this repository passed without changes, because the suite had already been run against a
+  local Postgres before the migration.
 - TODO: after deployment, record the smoke test on the live URL — a green CI run is not evidence of a deployment.
 
 ## Challenges and lessons learned
 
 - Three sources had to be reconciled (course template, teammate prompt, whiteboard) before writing code.
 - The development environment had no network access, so the most infrastructure-heavy code could only be reviewed,
-  not run — the top item in `docs/TASKS.md`.
+  not run. Resolved on 2026-10-01: the full suite passed against a local Postgres.
+- The first repository had edited the template's own files (`AGENTS.md`, skills, scripts, workflows). The project was
+  moved into a fresh copy of the template, keeping its structure and adding only project files.
+- Work an agent produces in a cloud session exists only in that session until it is committed and pushed: one README
+  draft was lost this way. Commit and push early.
+- The agent's permission system blocked it from wiring an automatic production deployment on its own. Deployment
+  stays a human decision (AI-SDLC phase 5: "defined together with the user").
 - TODO: what took longer than expected, what was wrong at first, what you would change with five more weeks.
