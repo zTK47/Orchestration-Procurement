@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Free Text Order Orchestration</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: .25rem; }
+  fieldset { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  label { display: block; margin: .5rem 0 .2rem; font-size: .85rem; color: #444; }
+  input, select, textarea { width: 100%; padding: .4rem; box-sizing: border-box; font: inherit; }
+  textarea { min-height: 6rem; }
+  button { margin-top: .75rem; padding: .5rem 1rem; cursor: pointer; }
+  pre { background: #0d1117; color: #c9d1d9; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: .8rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { border-bottom: 1px solid #eee; padding: .35rem; text-align: left; }
+  td.num, th.num { text-align: right; }
+  td input { padding: .25rem; }
+  #revise td:nth-child(1) { width: 46%; }
+  #revise td:nth-child(2) { width: 10%; }
+  #revise td:nth-child(4) { width: 12%; }
+  .badge { display: inline-block; padding: .1rem .5rem; border-radius: 4px; background: #eee; font-size: .8rem; }
+  .status-VALIDATED, .status-SENT { background: #d7f5dd; }
+  .status-NEEDS_CLARIFICATION { background: #ffe4c4; }
+  .notes { color: #8a4b00; }
+  .hint { font-size: .8rem; color: #666; }
+  [hidden] { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Free Text Order Orchestration</h1>
+<p class="hint">Supplier offer + free-text prompt → agent (mock) → validated OrderRequest → PDF → supplier.
+Offer: <span id="offer-id" class="badge">none</span>
+Order request: <span id="order-id" class="badge">none</span>
+Status: <span id="status" class="badge">—</span></p>
+
+<h2>1. Upload the supplier offer</h2>
+<fieldset>
+  <label for="supplier">Supplier</label>
+  <select id="supplier"></select>
+  <label for="offer-text">Offer text</label>
+  <textarea id="offer-text">Offer 2026-118 from Office Tech AG
+Dell Latitude 5440 Laptop - CHF 1'250.00
+Logitech MX Keys Keyboard - CHF 89.90
+USB-C Docking Station - CHF 189.00</textarea>
+  <button onclick="uploadOffer()">Upload offer</button>
+</fieldset>
+
+<h2>2. Order prompt</h2>
+<fieldset>
+  <label for="prompt">What do you want to order?</label>
+  <textarea id="prompt">I need 3 Dell Latitude laptops and 5 MX Keys keyboards</textarea>
+  <p class="hint">Try "2 office chairs and 1 docking station" to see the human fallback.</p>
+  <button onclick="generate()">Generate order request</button>
+</fieldset>
+
+<h2>3. Validate, render, send</h2>
+<fieldset>
+  <button onclick="step('validate')">Validate</button>
+  <button onclick="step('pdf')">Render PDF</button>
+  <button onclick="step('send')">Send to supplier</button>
+  <a id="pdf-link" href="#" target="_blank" hidden>Open PDF</a>
+</fieldset>
+
+<section id="revise" hidden>
+  <h2>4. Needs clarification — revise the line items</h2>
+  <fieldset>
+    <p class="hint">Fix or confirm the items, then validate again. The rules decide again; nothing is approved on a guess.</p>
+    <table>
+      <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th>Currency</th><th></th></tr></thead>
+      <tbody id="revise-rows"></tbody>
+    </table>
+    <button onclick="addRow()">Add line</button>
+    <button onclick="revise()">Confirm revised line items</button>
+  </fieldset>
+</section>
+
+<h2>Current order request</h2>
+<table>
+  <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Line total</th></tr></thead>
+  <tbody id="items"><tr><td colspan="4" class="hint">No order request yet.</td></tr></tbody>
+  <tfoot><tr><th colspan="3">Total</th><th class="num" id="total">—</th></tr></tfoot>
+</table>
+<ul id="notes" class="notes"></ul>
+<pre id="output">No request yet.</pre>
+
+<script>
+let offerId = null;
+let orderId = null;
+
+const $ = (id) => document.getElementById(id);
+const money = (amount, currency) => `${currency} ${Number(amount).toFixed(2)}`;
+
+function cell(text, cls) {
+  const td = document.createElement('td');
+  td.textContent = text;
+  if (cls) td.className = cls;
+  return td;
+}
+
+function render(order) {
+  orderId = order.orderRequestId;
+  $('order-id').textContent = orderId;
+  $('status').textContent = order.status;
+  $('status').className = `badge status-${order.status}`;
+
+  const body = $('items');
+  body.replaceChildren();
+  for (const item of order.lineItems) {
+    const tr = document.createElement('tr');
+    tr.append(cell(item.description), cell(item.quantity, 'num'),
+      cell(money(item.unitPrice, item.currency), 'num'), cell(money(item.lineTotal, item.currency), 'num'));
+    body.append(tr);
+  }
+  if (!order.lineItems.length) body.append(Object.assign(document.createElement('tr'), { innerHTML: '<td colspan="4" class="hint">No line items.</td>' }));
+  $('total').textContent = order.total ? money(order.total.amount, order.total.currency) : '—';
+
+  $('notes').replaceChildren(...order.validation.notes.map((n) => Object.assign(document.createElement('li'), { textContent: n })));
+
+  const needsHuman = order.status === 'NEEDS_CLARIFICATION';
+  $('revise').hidden = !needsHuman;
+  if (needsHuman) fillRevision(order.lineItems);
+
+  $('pdf-link').hidden = !order.pdfReference;
+  $('pdf-link').href = `/order-requests/${orderId}/pdf`;
+}
+
+function show(data) { $('output').textContent = JSON.stringify(data, null, 2); }
+
+async function call(method, url, body) {
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json();
+    show(res.ok ? data : { error: data.detail || data });
+    return res.ok ? data : null;
+  } catch (err) {
+    show({ error: String(err) });
+    return null;
+  }
+}
+
+async function loadSuppliers() {
+  const suppliers = await call('GET', '/suppliers');
+  if (!suppliers) return;
+  $('supplier').replaceChildren(...suppliers.map((s) =>
+    Object.assign(document.createElement('option'), { value: s.id, textContent: `${s.name} (${s.id})` })));
+}
+
+async function uploadOffer() {
+  const offer = await call('POST', '/supplier-offers', { supplierId: $('supplier').value, rawText: $('offer-text').value });
+  if (offer) { offerId = offer.offerId; $('offer-id').textContent = offerId; }
+}
+
+async function generate() {
+  if (!offerId) { show({ error: 'Upload a supplier offer first.' }); return; }
+  const order = await call('POST', '/order-requests', { supplierOfferId: offerId, promptText: $('prompt').value });
+  if (order) render(order);
+}
+
+async function step(name) {
+  if (!orderId) { show({ error: 'Generate an order request first.' }); return; }
+  const order = await call('POST', `/order-requests/${orderId}/${name}`);
+  if (order) render(order);
+}
+
+function addRow(item = { description: '', quantity: 1, unitPrice: 0, currency: 'CHF' }) {
+  const tr = document.createElement('tr');
+  const input = (type, value, cls) => {
+    const td = document.createElement('td');
+    const el = Object.assign(document.createElement('input'), { type, value });
+    if (type === 'number') { el.min = '0'; el.step = 'any'; }
+    td.append(el);
+    if (cls) td.className = cls;
+    return td;
+  };
+  const remove = document.createElement('td');
+  remove.append(Object.assign(document.createElement('button'), { textContent: '✕', onclick: () => tr.remove() }));
+  tr.append(input('text', item.description), input('number', item.quantity, 'num'),
+    input('number', item.unitPrice, 'num'), input('text', item.currency), remove);
+  $('revise-rows').append(tr);
+}
+
+function fillRevision(items) {
+  $('revise-rows').replaceChildren();
+  items.forEach((item) => addRow(item));
+}
+
+async function revise() {
+  const lineItems = [...$('revise-rows').children].map((tr) => {
+    const [description, quantity, unitPrice, currency] = [...tr.querySelectorAll('input')].map((i) => i.value);
+    return { description, quantity: parseInt(quantity, 10), unitPrice: parseFloat(unitPrice), currency };
+  });
+  const order = await call('PUT', `/order-requests/${orderId}/line-items`, { lineItems });
+  if (order) render(order);
+}
+
+loadSuppliers();
+</script>
+
+</body>
+</html>
