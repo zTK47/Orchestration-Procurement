@@ -30,3 +30,71 @@ jobs:
 
       - name: Check whitespace errors
         run: git diff --check
+
+  lint-and-unit-tests:
+    needs: structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check src tests
+
+      - name: Unit tests
+        run: pytest tests/unit
+
+  integration-and-e2e-tests:
+    needs: lint-and-unit-tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: procurement
+          POSTGRES_PASSWORD: procurement
+          POSTGRES_DB: procurement
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg2://procurement:procurement@localhost:5432/procurement
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Integration tests
+        run: pytest tests/integration
+
+      - name: E2E tests
+        run: pytest tests/e2e
+
+  docker-build:
+    needs: integration-and-e2e-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t procurement-orchestrator .

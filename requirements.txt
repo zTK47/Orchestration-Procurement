@@ -1,0 +1,10 @@
+# Mirrors pyproject.toml; use `pip install -e ".[dev]"` for the editable install.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+fpdf2>=2.8
+pytest>=8.0
+httpx>=0.27
+ruff~=0.16.0

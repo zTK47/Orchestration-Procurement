@@ -1,6 +1,7 @@
 # Mappe di progetto
 
-Bozze iniziali del team (26–30 settembre). Sono input per SPECIFY e DESIGN,
+Bozze iniziali del team (26–30 settembre), disegnate su
+[Excalidraw](https://excalidraw.com/#room=3c4bdb1147ddb60d24ab,gAuR7NMiUHYVB3bp2xksUQ). Sono input per SPECIFY e DESIGN,
 non decisioni approvate: le scelte definitive vanno registrate come ADR.
 
 ## Free Text Order Orchestration

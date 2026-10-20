@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Procurement Orchestrator</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: .25rem; }
+  fieldset { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  label { display: block; margin: .5rem 0 .2rem; font-size: .85rem; color: #444; }
+  input, select { width: 100%; padding: .4rem; box-sizing: border-box; }
+  button { margin-top: .75rem; padding: .5rem 1rem; cursor: pointer; }
+  pre { background: #0d1117; color: #c9d1d9; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: .8rem; }
+  .row { display: flex; gap: .5rem; }
+  .row > div { flex: 1; }
+  .badge { display: inline-block; padding: .1rem .5rem; border-radius: 4px; background: #eee; font-size: .8rem; }
+</style>
+</head>
+<body>
+
+<h1>Procurement Orchestrator</h1>
+<p>Demo UI over the pipeline. Current request: <span id="current-id" class="badge">none</span></p>
+
+<h2>1a. Submit a request — free text</h2>
+<fieldset>
+  <label>Raw text</label>
+  <input id="raw-text" value="I need 5 new Lenovo Laptops for the IT department" />
+  <div class="row">
+    <div><label>Requester ID</label><input id="requester-id-text" value="U-REQ-1" /></div>
+    <div><label>Cost Center ID</label><input id="cost-center-id-text" value="CC-IT" /></div>
+  </div>
+  <button onclick="createFromText()">Create + Parse</button>
+</fieldset>
+
+<h2>1b. Submit a request — direct catalog selection</h2>
+<fieldset>
+  <div class="row">
+    <div><label>SKU</label><input id="sku" value="LEN-T14-G3" /></div>
+    <div><label>Quantity</label><input id="quantity" type="number" value="2" /></div>
+  </div>
+  <div class="row">
+    <div><label>Requester ID</label><input id="requester-id-catalog" value="U-REQ-1" /></div>
+    <div><label>Cost Center ID</label><input id="cost-center-id-catalog" value="CC-IT" /></div>
+  </div>
+  <button onclick="createFromCatalog()">Create from Catalog</button>
+</fieldset>
+
+<h2>2. Advance the pipeline</h2>
+<fieldset>
+  <button onclick="callStep('resolve')">Resolve</button>
+  <button onclick="callStep('validate')">Validate</button>
+  <button onclick="callStep('create-order')">Create Order</button>
+</fieldset>
+
+<h2>4. After approval: ERP hand-off</h2>
+<fieldset>
+  <button onclick="callStep('send-order')">Send order to ERP</button>
+  <button onclick="callStep('goods-receipt')">Record goods receipt</button>
+  <button onclick="callStep('complete')">Complete</button>
+</fieldset>
+
+<h2>3. Record an approval decision (only when approval is required)</h2>
+<fieldset>
+  <div class="row">
+    <div>
+      <label>Approver</label>
+      <select id="approver-id">
+        <option value="U-MAN-1">Bob (Manager)</option>
+        <option value="U-BO-1">Carla (Budget Owner)</option>
+      </select>
+    </div>
+    <div>
+      <label>Level</label>
+      <select id="approval-level">
+        <option value="MANAGER">MANAGER</option>
+        <option value="BUDGET_OWNER">BUDGET_OWNER</option>
+      </select>
+    </div>
+    <div>
+      <label>Decision</label>
+      <select id="approval-decision">
+        <option value="APPROVED">APPROVED</option>
+        <option value="REJECTED">REJECTED</option>
+      </select>
+    </div>
+  </div>
+  <button onclick="recordApproval()">Submit Decision</button>
+</fieldset>
+
+<h2>Current state</h2>
+<pre id="output">No request yet.</pre>
+
+<script>
+let currentRequestId = null;
+
+function show(data) {
+  document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+  if (data.requestId) {
+    currentRequestId = data.requestId;
+    document.getElementById('current-id').textContent = currentRequestId;
+  }
+}
+
+async function handle(promise) {
+  try {
+    const res = await promise;
+    const data = await res.json();
+    if (!res.ok) { show({ error: data.detail || data }); return; }
+    show(data);
+  } catch (err) {
+    show({ error: String(err) });
+  }
+}
+
+function createFromText() {
+  handle(fetch('/procurement-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requesterId: document.getElementById('requester-id-text').value,
+      costCenterId: document.getElementById('cost-center-id-text').value,
+      rawText: document.getElementById('raw-text').value,
+    }),
+  }));
+}
+
+function createFromCatalog() {
+  handle(fetch('/procurement-requests/from-catalog', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requesterId: document.getElementById('requester-id-catalog').value,
+      costCenterId: document.getElementById('cost-center-id-catalog').value,
+      sku: document.getElementById('sku').value,
+      quantity: parseInt(document.getElementById('quantity').value, 10),
+    }),
+  }));
+}
+
+function callStep(step) {
+  if (!currentRequestId) { show({ error: 'No current request. Create one first.' }); return; }
+  handle(fetch(`/procurement-requests/${currentRequestId}/${step}`, { method: 'POST' }));
+}
+
+function recordApproval() {
+  if (!currentRequestId) { show({ error: 'No current request. Create one first.' }); return; }
+  handle(fetch(`/procurement-requests/${currentRequestId}/approvals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      approverId: document.getElementById('approver-id').value,
+      level: document.getElementById('approval-level').value,
+      decision: document.getElementById('approval-decision').value,
+    }),
+  }));
+}
+</script>
+
+</body>
+</html>
