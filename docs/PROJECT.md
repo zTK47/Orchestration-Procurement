@@ -126,6 +126,7 @@ tests/{unit,integration,e2e}/
 docs/{PROJECT.md,TASKS.md,LEARNINGS.md,specs/,adr/,design-sketches/}
 demo.py                      # procurement pipeline in memory, no install needed
 Dockerfile, docker-compose.yml
+.mcp.json, .vscode/mcp.json  # shared MCP server config (GitMCP, no keys)
 ```
 
 Template artefacts (`AGENTS.md`, `skills/`, `scripts/`, `.devcontainer/`,

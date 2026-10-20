@@ -18,10 +18,14 @@ Next phase (4 = VALIDATE) starts as ready once the team selects it.
 
 - [ ] Team decision on ADR-001 … ADR-008 (all Proposed): accept, change or reject, with review reference
 - [ ] VALIDATE: green CI on the pull request (incl. `docker-build`), coverage check, release tag `v0.1.0`
-- [ ] DEPLOY: hosting platform, database and secrets; activate `.github/workflows/cd.yml`; record the live smoke test here
-- [ ] Document at least one MCP server: which, why, which permissions (course SW4)
+- [ ] DEPLOY: hosting platform, database and secrets; add `scripts/deploy.sh` and `scripts/smoke-test.sh`, activate `.github/workflows/cd.yml`; record the live smoke test here (needs team approval: the agent may not wire a production deployment on its own)
+- [x] MCP server documented in `README.md` (GitMCP, read-only, no key) with `.mcp.json` and `.vscode/mcp.json`
+- [ ] Each team member adds the MCP server locally and tests it with a project question (course SW4, task 3)
 - [ ] Record agent and model choice with rationale (course SW3)
-- [ ] Complete `docs/LEARNINGS.md`; rewrite `README.md` for the project
+- [x] `README.md` rewritten for the project
+- [ ] Complete the TODO entries in `docs/LEARNINGS.md`
+- [ ] Optional: extend the dependency-rule guard test to `src/procurement`
+- [ ] Presentation (29.10): architecture decisions, coding agents, tool selection, testing and deployment, lessons learned
 - [ ] Trim comments/docstrings to the "avoid unnecessary comments" rule
 - [ ] Later: real LLM via the FHNW LiteLLM gateway, configurable price-tie strategy, `ApprovalWorkflow` entity, OPO persistence and Dockerfile entry for the second app
 
@@ -61,6 +65,8 @@ The architecture constraints are recorded in `docs/PROJECT.md`.
 | 2026-10-20 | `pytest tests` (Postgres 16 local, Python 3.13) | 166 passed, 1 deprecation warning (Starlette TestClient/httpx) |
 | 2026-10-20 | `python demo.py` | pipeline reaches COMPLETED |
 | 2026-10-20 | `docker build` | not verified locally (Docker Hub 429 in the sandbox); checked by the CI `docker-build` job |
+| 2026-10-20 | CI on PR #2 (structure, lint + unit, integration + e2e, docker-build) | all green |
+| 2026-10-20 | GitMCP endpoint | not reachable from the agent sandbox (proxy 403); to be tested by the team |
 
 ## OPO TDD log (2026-10-01)
 

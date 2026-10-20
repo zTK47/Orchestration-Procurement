@@ -1,10 +1,4 @@
-"""SQLAlchemy engine and session setup.
-
-Status: scaffolded, NOT YET wired into main.py. The current prototype
-(Phase 3 - Develop) runs on the in-memory repositories so that the domain
-and application logic can be fully TDD'd without requiring a running
-database. Swapping to Postgres-backed repositories is tracked as the
-Phase 4 (Validate) milestone in docs/TASKS.md.
+"""SQLAlchemy engine and session setup, used by main.py and interfaces/api/dependencies.py.
 
 Expected environment variable:
     DATABASE_URL  e.g. postgresql+psycopg2://user:password@host/dbname
